@@ -24,9 +24,9 @@ type PolicyRunner struct {
 }
 
 // Run implements Runner.
-func (pr PolicyRunner) Run(ctx context.Context, clusterID, taskID, runID uuid.UUID, properties json.RawMessage) error {
+func (pr PolicyRunner) Run(ctx context.Context, clusterID, taskID, runID uuid.UUID, properties json.RawMessage) *RunResult {
 	if err := pr.Policy.PreRun(clusterID, taskID, runID); err != nil {
-		return err
+		return &RunResult{Err: err}
 	}
 	defer pr.Policy.PostRun(clusterID, taskID, runID)
 	return pr.Runner.Run(ctx, clusterID, taskID, runID, properties)

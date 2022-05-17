@@ -37,10 +37,10 @@ func (m *mockRunner) EXPECT() *mockRunnerMockRecorder {
 }
 
 // Run mocks base method.
-func (m *mockRunner) Run(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 json.RawMessage) error {
+func (m *mockRunner) Run(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 json.RawMessage) *RunResult {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Run", arg0, arg1, arg2, arg3, arg4)
-	ret0, _ := ret[0].(error)
+	ret0, _ := ret[0].(*RunResult)
 	return ret0
 }
 

@@ -22,7 +22,7 @@ func TestPolicyRunner(t *testing.T) {
 		c := uuid.MustRandom()
 		k := uuid.MustRandom()
 		r := uuid.MustRandom()
-		e := errors.New("test")
+		e := &RunResult{Err: errors.New("test")}
 
 		mp := NewmockPolicy(ctrl)
 		mp.EXPECT().PreRun(c, k, r).Return(e)
@@ -32,7 +32,7 @@ func TestPolicyRunner(t *testing.T) {
 			Policy: mp,
 			Runner: mr,
 		}
-		if err := p.Run(context.Background(), c, k, r, nil); err != e {
+		if err := p.Run(context.Background(), c, k, r, nil); err.Error() != e.Error() {
 			t.Fatal("expected", e, "got", err)
 		}
 	})
@@ -44,7 +44,7 @@ func TestPolicyRunner(t *testing.T) {
 		c := uuid.MustRandom()
 		k := uuid.MustRandom()
 		r := uuid.MustRandom()
-		e := errors.New("test")
+		e := &RunResult{Err: errors.New("test")}
 
 		mp := NewmockPolicy(ctrl)
 		gomock.InOrder(

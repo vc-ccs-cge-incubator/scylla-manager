@@ -350,6 +350,7 @@ const (
 	StatusDone     Status = "DONE"
 	StatusError    Status = "ERROR"
 	StatusAborted  Status = "ABORTED"
+	StatusWarning  Status = "WARNING"
 )
 
 var allStatuses = []Status{
@@ -389,6 +390,8 @@ func (s *Status) UnmarshalText(text []byte) error {
 		*s = StatusError
 	case StatusAborted:
 		*s = StatusAborted
+	case StatusWarning:
+		*s = StatusWarning
 	default:
 		return fmt.Errorf("unrecognized Status %q", text)
 	}

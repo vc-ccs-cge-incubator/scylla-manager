@@ -13,6 +13,7 @@ import (
 	"github.com/scylladb/scylla-manager/v3/pkg/ping"
 	"github.com/scylladb/scylla-manager/v3/pkg/scyllaclient"
 	"github.com/scylladb/scylla-manager/v3/pkg/service"
+	"github.com/scylladb/scylla-manager/v3/pkg/service/scheduler"
 	"github.com/scylladb/scylla-manager/v3/pkg/util/parallel"
 	"github.com/scylladb/scylla-manager/v3/pkg/util/uuid"
 )
@@ -24,21 +25,21 @@ type Runner struct {
 	alternator runner
 }
 
-func (r Runner) Run(ctx context.Context, clusterID, taskID, runID uuid.UUID, properties json.RawMessage) error {
+func (r Runner) Run(ctx context.Context, clusterID, taskID, runID uuid.UUID, properties json.RawMessage) *scheduler.RunResult {
 	p := taskProperties{}
 	if err := json.Unmarshal(properties, &p); err != nil {
-		return service.ErrValidate(err)
+		return &scheduler.RunResult{Err: service.ErrValidate(err)}
 	}
 
 	switch p.Mode {
 	case CQLMode:
-		return r.cql.Run(ctx, clusterID, taskID, runID, properties)
+		return &scheduler.RunResult{Err: r.cql.Run(ctx, clusterID, taskID, runID, properties)}
 	case RESTMode:
-		return r.rest.Run(ctx, clusterID, taskID, runID, properties)
+		return &scheduler.RunResult{Err: r.rest.Run(ctx, clusterID, taskID, runID, properties)}
 	case AlternatorMode:
-		return r.alternator.Run(ctx, clusterID, taskID, runID, properties)
+		return &scheduler.RunResult{Err: r.alternator.Run(ctx, clusterID, taskID, runID, properties)}
 	default:
-		return errors.Errorf("unspecified mode")
+		return &scheduler.RunResult{Err: errors.Errorf("unspecified mode")}
 	}
 }
 

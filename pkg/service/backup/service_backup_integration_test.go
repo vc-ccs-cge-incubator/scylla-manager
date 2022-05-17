@@ -623,13 +623,13 @@ func TestBackupSmokeIntegration(t *testing.T) {
 	}
 
 	Print("When: run backup")
-	if err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
 		t.Fatal(err)
 	}
 	// Sleep to avoid tag collision.
 	time.Sleep(time.Second)
 	Print("And: run it again")
-	if err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
 		t.Fatal(err)
 	}
 
@@ -722,7 +722,7 @@ func TestBackupSmokeIntegration(t *testing.T) {
 	WriteData(t, clusterSession, testKeyspace, 210)
 
 	Print("And: run it again")
-	if err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
 		t.Fatal(err)
 	}
 
@@ -861,7 +861,7 @@ func TestBackupWithNodesDownIntegration(t *testing.T) {
 	}
 
 	Print("When: run backup")
-	if err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
 		t.Fatal(err)
 	}
 
@@ -961,7 +961,7 @@ func TestBackupResumeIntegration(t *testing.T) {
 		go func() {
 			defer close(done)
 			Print("When: backup is running")
-			err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target)
+			err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target)
 			if err == nil {
 				t.Error("Expected error on run but got nil")
 			} else {
@@ -999,7 +999,7 @@ func TestBackupResumeIntegration(t *testing.T) {
 		}
 
 		Print("When: backup is resumed with new RunID")
-		err := h.service.Backup(context.Background(), h.clusterID, h.taskID, uuid.NewTime(), target)
+		err, _ := h.service.Backup(context.Background(), h.clusterID, h.taskID, uuid.NewTime(), target)
 		if err != nil {
 			t.Error("Unexpected error", err)
 		}
@@ -1028,7 +1028,7 @@ func TestBackupResumeIntegration(t *testing.T) {
 
 		go func() {
 			Print("When: backup is running")
-			err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target)
+			err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target)
 			if err != nil {
 				t.Errorf("Expected no error but got %+v", err)
 			}
@@ -1086,7 +1086,7 @@ func TestBackupResumeIntegration(t *testing.T) {
 		}
 
 		Print("When: run backup")
-		err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target)
+		err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target)
 
 		Print("Then: it fails")
 		if err == nil {
@@ -1099,7 +1099,7 @@ func TestBackupResumeIntegration(t *testing.T) {
 
 		Print("When: backup is resumed with new RunID")
 		tag := getTagAndWait()
-		err = h.service.Backup(context.Background(), h.clusterID, h.taskID, uuid.NewTime(), target)
+		err, _ = h.service.Backup(context.Background(), h.clusterID, h.taskID, uuid.NewTime(), target)
 		if err != nil {
 			t.Error("Unexpected error", err)
 		}
@@ -1136,7 +1136,7 @@ func TestBackupResumeIntegration(t *testing.T) {
 		go func() {
 			defer close(done)
 			Print("When: backup is running")
-			err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target)
+			err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target)
 			if err == nil {
 				t.Error("Expected error on run but got nil")
 			} else {
@@ -1160,7 +1160,7 @@ func TestBackupResumeIntegration(t *testing.T) {
 
 		Print("When: backup is resumed with new RunID")
 		tag := getTagAndWait()
-		err := h.service.Backup(context.Background(), h.clusterID, h.taskID, uuid.NewTime(), target)
+		err, _ := h.service.Backup(context.Background(), h.clusterID, h.taskID, uuid.NewTime(), target)
 		if err != nil {
 			t.Error("Unexpected error", err)
 		}
@@ -1209,7 +1209,7 @@ func TestBackupTemporaryManifestsIntegration(t *testing.T) {
 	}
 
 	Print("When: run backup")
-	if err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1246,7 +1246,7 @@ func TestBackupTemporaryManifestsIntegration(t *testing.T) {
 
 	Print("When: run backup")
 	h.runID = uuid.NewTime()
-	if err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1312,7 +1312,7 @@ func TestBackupTemporaryManifestMoveRollbackOnErrorIntegration(t *testing.T) {
 	}))
 
 	Print("When: backup runs")
-	err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target)
+	err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target)
 	Print("Then: it ends with error")
 	if err == nil {
 		t.Error("Expected error on run but got nil")
@@ -1336,6 +1336,78 @@ func TestBackupTemporaryManifestMoveRollbackOnErrorIntegration(t *testing.T) {
 
 	if tempManifestCount != 3 || manifestCount != 0 {
 		t.Fatalf("Expected to have 3 temp manifests, found %d and %d manifests", tempManifestCount, manifestCount)
+	}
+}
+
+func TestBackupPurgeFailureEndsInWarningIntegration(t *testing.T) {
+	const (
+		testBucket   = "backuptest-purgefail"
+		testKeyspace = "backuptest_purgefail"
+	)
+
+	location := s3Location(testBucket)
+	config := backup.DefaultConfig()
+
+	var (
+		session        = CreateSession(t)
+		clusterSession = CreateManagedClusterSessionAndDropAllKeyspaces(t)
+		h              = newBackupTestHelper(t, session, config, location, nil)
+		ctx            = context.Background()
+	)
+
+	WriteData(t, clusterSession, testKeyspace, 3)
+
+	target := backup.Target{
+		Units: []backup.Unit{
+			{
+				Keyspace: testKeyspace,
+			},
+		},
+		DC:        []string{"dc1"},
+		Location:  []Location{location},
+		Retention: 1,
+	}
+	if err := h.service.InitTarget(ctx, h.clusterID, &target); err != nil {
+		t.Fatal(err)
+	}
+
+	Print("When: backup runs")
+	h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target)
+
+	manifests, _, _ := h.listS3Files()
+	if len(manifests) != 3 {
+		t.Fatalf("Expected manifest per node, got %d", len(manifests))
+	}
+	h.tamperWithManifest(ctx, manifests[0], func(m ManifestInfoWithContent) bool {
+		m.NodeID = uuid.MustRandom().String()
+		m.Temporary = true
+		return true
+	})
+
+	movedManifests := atomic.NewInt64(0)
+	h.hrt.SetInterceptor(httpx.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path == "/agent/rclone/operations/movefile" {
+			movedManifests.Add(1)
+		}
+		// After moving all fail the purge when deleting files
+		if req.URL.Path == "/agent/rclone/operations/deletefile" && movedManifests.Load() == 3 {
+			return httpx.MakeAgentErrorResponse(req, 400, "explicit failure"), nil
+		}
+
+		return nil, nil
+	}))
+
+	Print("And: another backup runs which fails to delete files")
+	err, wErr := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target)
+
+	Print("Then: we have a warning error only")
+	if err != nil {
+		t.Errorf("Expected no error on run but got %s", err)
+	}
+	if wErr == nil {
+		t.Error("Expected warning on run but got nil")
+	} else {
+		t.Log("Backup() warning error", wErr)
 	}
 }
 
@@ -1387,7 +1459,7 @@ func TestBackupTemporaryManifestsNotFoundIssue2862Integration(t *testing.T) {
 	}))
 
 	Print("When: run backup")
-	if err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
 		t.Fatal(err)
 	}
 	Print("Then: it ends with no error")
@@ -1434,7 +1506,7 @@ func TestPurgeIntegration(t *testing.T) {
 	}
 
 	Print("When: run backup")
-	if err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1496,7 +1568,7 @@ func TestPurgeIntegration(t *testing.T) {
 	WriteData(t, clusterSession, testKeyspace, 3)
 
 	Print("And: run backup again")
-	if err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1575,7 +1647,7 @@ func TestPurgeTemporaryManifestsIntegration(t *testing.T) {
 	}
 
 	Print("When: run backup")
-	if err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1591,7 +1663,7 @@ func TestPurgeTemporaryManifestsIntegration(t *testing.T) {
 	})
 
 	Print("And: run backup again")
-	if err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1639,7 +1711,7 @@ func TestDeleteSnapshotIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := uuid.NewTime()
-	if err := h.service.Backup(ctx, h.clusterID, h.taskID, runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, runID, target); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1652,7 +1724,7 @@ func TestDeleteSnapshotIntegration(t *testing.T) {
 	}
 
 	runID = uuid.NewTime()
-	if err := h.service.Backup(ctx, h.clusterID, task2ID, runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, task2ID, runID, target); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1847,7 +1919,7 @@ func TestValidateIntegration(t *testing.T) {
 	}
 
 	Print("When: run backup")
-	if err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2028,7 +2100,7 @@ func TestBackupRestoreIntegration(t *testing.T) {
 	}
 
 	Print("And: run backup")
-	if err := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
+	if err, _ := h.service.Backup(ctx, h.clusterID, h.taskID, h.runID, target); err != nil {
 		t.Fatal(err)
 	}
 

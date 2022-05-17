@@ -27,6 +27,7 @@ import (
 	"github.com/scylladb/scylla-manager/v3/pkg/util/timeutc"
 	"github.com/scylladb/scylla-manager/v3/pkg/util/uuid"
 	"go.uber.org/atomic"
+	"go.uber.org/multierr"
 )
 
 const defaultRateLimit = 100 // 100MiB
@@ -633,7 +634,7 @@ func (s *Service) resolveHosts(ctx context.Context, client *scyllaclient.Client,
 }
 
 // Backup executes a backup on a given target.
-func (s *Service) Backup(ctx context.Context, clusterID, taskID, runID uuid.UUID, target Target) error {
+func (s *Service) Backup(ctx context.Context, clusterID, taskID, runID uuid.UUID, target Target) (fatalErr, warnErr error) {
 	s.logger.Debug(ctx, "Backup",
 		"cluster_id", clusterID,
 		"task_id", taskID,
@@ -661,13 +662,13 @@ func (s *Service) Backup(ctx context.Context, clusterID, taskID, runID uuid.UUID
 
 	if target.Continue {
 		if err := s.decorateWithPrevRun(ctx, run); err != nil {
-			return err
+			return err, nil
 		}
 		// Update run with previous progress.
 		if run.PrevID != uuid.Nil {
 			s.putRunLogError(ctx, run)
 			if err := s.clonePrevProgress(run); err != nil {
-				return errors.Wrap(err, "clone progress")
+				return errors.Wrap(err, "clone progress"), nil
 			}
 		}
 	}
@@ -680,7 +681,7 @@ func (s *Service) Backup(ctx context.Context, clusterID, taskID, runID uuid.UUID
 	// Get the cluster client
 	client, err := s.scyllaClient(ctx, run.ClusterID)
 	if err != nil {
-		return errors.Wrap(err, "initialize: get client proxy")
+		return errors.Wrap(err, "initialize: get client proxy"), nil
 	}
 
 	// Get live nodes
@@ -697,25 +698,25 @@ func (s *Service) Backup(ctx context.Context, clusterID, taskID, runID uuid.UUID
 			}
 		}
 		if len(liveNodes) != len(run.Nodes) {
-			return errors.New("missing hosts to resume backup")
+			return errors.New("missing hosts to resume backup"), nil
 		}
 	}
 
 	// Create hostInfo for run hosts
 	hi, err := makeHostInfo(liveNodes, target.Location, target.RateLimit)
 	if err != nil {
-		return err
+		return err, nil
 	}
 
 	// Register the run
 	if err := s.putRun(run); err != nil {
-		return errors.Wrap(err, "initialize: register the run")
+		return errors.Wrap(err, "initialize: register the run"), nil
 	}
 
 	// Get cluster name
 	clusterName, err := s.clusterName(ctx, run.ClusterID)
 	if err != nil {
-		return errors.Wrap(err, "invalid cluster")
+		return errors.Wrap(err, "invalid cluster"), nil
 	}
 
 	// Create a worker
@@ -785,11 +786,11 @@ func (s *Service) Backup(ctx context.Context, clusterID, taskID, runID uuid.UUID
 	prevStage := run.Stage
 
 	// Execute stages according to the stage order.
-	execStage := func(stage Stage, f func() error) error {
+	execStage := func(stage Stage, f func() error) (error, error) {
 		// In purge only mode skip all stages before purge.
 		if target.PurgeOnly {
 			if stage.Index() < StagePurge.Index() {
-				return nil
+				return nil, nil
 			}
 		}
 
@@ -799,7 +800,7 @@ func (s *Service) Backup(ctx context.Context, clusterID, taskID, runID uuid.UUID
 			if stage == StageIndex && (prevStage == StageManifest || prevStage == StageUpload) {
 				// continue
 			} else if prevStage.Index() > stage.Index() {
-				return nil
+				return nil, nil
 			}
 		}
 
@@ -812,17 +813,29 @@ func (s *Service) Backup(ctx context.Context, clusterID, taskID, runID uuid.UUID
 		defer w.cleanup(ctx, hi)
 
 		// Run function
-		return errors.Wrap(f(), strings.ReplaceAll(name, "_", " "))
+		err := errors.Wrap(f(), strings.ReplaceAll(name, "_", " "))
+
+		if err != nil && stage.Index() == StagePurge.Index() && !target.PurgeOnly {
+			return nil, err
+		}
+
+		return err, nil
 	}
+
+	var warningErr error
 	for _, s := range StageOrder() {
 		if f, ok := stageFunc[s]; ok {
-			if err := execStage(s, f); err != nil {
-				return err
+			err, wErr := execStage(s, f)
+			if wErr != nil {
+				warningErr = multierr.Append(warningErr, wErr)
+			}
+			if err != nil {
+				return err, warningErr
 			}
 		}
 	}
 
-	return nil
+	return nil, warningErr
 }
 
 // decorateWithPrevRun gets task previous run and if it can be continued

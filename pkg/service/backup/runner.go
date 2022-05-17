@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 
 	"github.com/pkg/errors"
+	"github.com/scylladb/scylla-manager/v3/pkg/service/scheduler"
 	"github.com/scylladb/scylla-manager/v3/pkg/util/uuid"
 )
 
@@ -15,13 +16,17 @@ type Runner struct {
 	service *Service
 }
 
-func (r Runner) Run(ctx context.Context, clusterID, taskID, runID uuid.UUID, properties json.RawMessage) error {
+func (r Runner) Run(ctx context.Context, clusterID, taskID, runID uuid.UUID, properties json.RawMessage) *scheduler.RunResult {
 	r.service.metrics.ResetClusterMetrics(clusterID)
 
 	t, err := r.service.GetTarget(ctx, clusterID, properties)
 	if err != nil {
-		return errors.Wrap(err, "get backup target")
+		return &scheduler.RunResult{Err: errors.Wrap(err, "get backup target")}
 	}
 
-	return r.service.Backup(ctx, clusterID, taskID, runID, t)
+	if err, wErr := r.service.Backup(ctx, clusterID, taskID, runID, t); err != nil || wErr != nil {
+		return &scheduler.RunResult{Err: err, WarningErr: wErr}
+	}
+
+	return nil
 }

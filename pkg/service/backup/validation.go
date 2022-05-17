@@ -18,6 +18,7 @@ import (
 	"github.com/scylladb/scylla-manager/v3/pkg/scyllaclient"
 	"github.com/scylladb/scylla-manager/v3/pkg/service"
 	. "github.com/scylladb/scylla-manager/v3/pkg/service/backup/backupspec"
+	"github.com/scylladb/scylla-manager/v3/pkg/service/scheduler"
 	"github.com/scylladb/scylla-manager/v3/pkg/util/parallel"
 	"github.com/scylladb/scylla-manager/v3/pkg/util/pointer"
 	"github.com/scylladb/scylla-manager/v3/pkg/util/timeutc"
@@ -39,12 +40,12 @@ type ValidationRunner struct {
 }
 
 // Run implements scheduler.Runner.
-func (r ValidationRunner) Run(ctx context.Context, clusterID, taskID, runID uuid.UUID, properties json.RawMessage) error {
+func (r ValidationRunner) Run(ctx context.Context, clusterID, taskID, runID uuid.UUID, properties json.RawMessage) *scheduler.RunResult {
 	t, err := r.service.GetValidationTarget(ctx, clusterID, properties)
 	if err != nil {
-		return errors.Wrap(err, "get validation target")
+		return &scheduler.RunResult{Err: errors.Wrap(err, "get validation target")}
 	}
-	return r.service.Validate(ctx, clusterID, taskID, runID, t)
+	return &scheduler.RunResult{Err: r.service.Validate(ctx, clusterID, taskID, runID, t)}
 }
 
 // ValidationRunner creates a Runner that handles backup validation.

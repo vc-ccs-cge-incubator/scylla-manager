@@ -32,4 +32,5 @@ const (
 	TaskStatusDone     string = "DONE"
 	TaskStatusError    string = "ERROR"
 	TaskStatusAborted  string = "ABORTED"
+	TaskStatusWarning  string = "WARNING"
 )

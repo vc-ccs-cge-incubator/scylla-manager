@@ -400,6 +400,11 @@ func (s *Service) run(ctx scheduler.RunContext) (runErr error) {
 		if r.Status == StatusError {
 			r.Cause = runErr.Error()
 		}
+		if r.Status == StatusWarning {
+			if e, ok := runErr.(*RunResult); ok { // nolint: errorlint
+				r.Cause = e.WarningErr.Error()
+			}
+		}
 		if r.Status == StatusStopped && s.isClosed() {
 			r.Status = StatusAborted
 		}
@@ -484,6 +489,15 @@ func (s *Service) updateTaskWithRun(r *Run) error {
 }
 
 func statusFromError(err error) Status {
+	if r, ok := err.(*RunResult); ok { // nolint: errorlint
+		if r.Err == nil {
+			if r.WarningErr != nil {
+				return StatusWarning
+			}
+			return StatusDone
+		}
+	}
+
 	switch {
 	case err == nil:
 		return StatusDone

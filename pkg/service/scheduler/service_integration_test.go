@@ -53,14 +53,14 @@ func newMockRunner() *mockRunner {
 	}
 }
 
-func (r *mockRunner) Run(ctx context.Context, clusterID, taskID, runID uuid.UUID, properties json.RawMessage) error {
+func (r *mockRunner) Run(ctx context.Context, clusterID, taskID, runID uuid.UUID, properties json.RawMessage) *scheduler.RunResult {
 	r.called.Inc()
 	r.recordProperties(properties)
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return &scheduler.RunResult{Err: ctx.Err()}
 	case v := <-r.in:
-		return v
+		return &scheduler.RunResult{Err: v}
 	}
 }
 

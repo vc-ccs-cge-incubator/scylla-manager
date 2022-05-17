@@ -281,10 +281,10 @@ type suspendRunner struct {
 	service *Service
 }
 
-func (s suspendRunner) Run(ctx context.Context, clusterID, taskID, runID uuid.UUID, properties json.RawMessage) error {
+func (s suspendRunner) Run(ctx context.Context, clusterID, taskID, runID uuid.UUID, properties json.RawMessage) *RunResult {
 	p, err := GetSuspendProperties(properties)
 	if err != nil {
-		return service.ErrValidate(err)
+		return &RunResult{Err: service.ErrValidate(err)}
 	}
 
 	if p.Resume {
@@ -297,5 +297,5 @@ func (s suspendRunner) Run(ctx context.Context, clusterID, taskID, runID uuid.UU
 		_, err = s.service.suspend(ctx, clusterID, p)
 	}
 
-	return err
+	return &RunResult{Err: err}
 }

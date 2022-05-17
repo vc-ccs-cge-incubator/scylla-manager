@@ -151,6 +151,7 @@ var taskStatusSortOrder = map[string]int{
 	"DONE":     6,
 	"ERROR":    7,
 	"ABORTED":  8,
+	"WARNING":  9,
 }
 
 func sortTasksByStatus(tasks managerclient.TaskListItemSlice) {
