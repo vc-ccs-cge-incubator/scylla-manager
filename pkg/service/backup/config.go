@@ -15,6 +15,7 @@ type Config struct {
 	DiskSpaceFreeMinPercent   int           `yaml:"disk_space_free_min_percent"`
 	LongPollingTimeoutSeconds int           `yaml:"long_polling_timeout_seconds"`
 	AgeMax                    time.Duration `yaml:"age_max"`
+	LocalDC                   string        `yaml:"local_dc"`
 }
 
 func DefaultConfig() Config {
