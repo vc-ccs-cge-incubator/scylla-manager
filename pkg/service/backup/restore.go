@@ -91,18 +91,15 @@ func (s *Service) Restore(ctx context.Context, clusterID, taskID, runID uuid.UUI
 	if err != nil {
 		return errors.Wrap(err, "invalid cluster")
 	}
-
 	// Get the cluster client
 	client, err := s.scyllaClient(ctx, clusterID)
 	if err != nil {
-		return errors.Wrap(err, "initialize: get client proxy")
+		return errors.Wrap(err, "get client proxy")
 	}
-
 	// Get cluster session
 	clusterSession, err := s.clusterSession(ctx, clusterID)
 	if err != nil {
-		s.logger.Info(ctx, "No CQL cluster session, restore can't proceed", "error", err)
-		return err
+		return errors.Wrap(err, "get CQL cluster session")
 	}
 	defer clusterSession.Close()
 
@@ -132,8 +129,9 @@ func (s *Service) Restore(ctx context.Context, clusterID, taskID, runID uuid.UUI
 			w.clonePrevProgress(run)
 		}
 
-		w.Logger.Info(ctx, "After decoration", "run", *run)
-
+		w.Logger.Info(ctx, "After decoration",
+			"run", *run,
+		)
 	} else {
 		w.InsertRun(ctx, run)
 	}
@@ -160,7 +158,7 @@ func (s *Service) Restore(ctx context.Context, clusterID, taskID, runID uuid.UUI
 		run.Stage = StageRestoreFiles
 		w.InsertRun(ctx, run)
 
-		if err := w.restoreFiles(ctx, run, target, s.config.LocalDC); err != nil {
+		if err := w.RestoreFiles(ctx, run, target, s.config.LocalDC); err != nil {
 			return errors.Wrap(err, "restore files")
 		}
 	}
