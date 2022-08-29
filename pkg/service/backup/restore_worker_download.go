@@ -29,7 +29,7 @@ type jobUnit struct {
 // bundle represents list of SSTables with the same ID.
 type bundle []string
 
-func (w *restoreWorker) restoreFiles(ctx context.Context, run *RestoreRun, target RestoreTarget, localDC string) error {
+func (w *restoreWorker) RestoreFiles(ctx context.Context, run *RestoreRun, target RestoreTarget, localDC string) error {
 	w.AwaitSchemaAgreement(ctx, w.clusterSession)
 
 	filter, err := ksfilter.NewFilter(target.Keyspace)
@@ -350,13 +350,19 @@ func (w *restoreWorker) updateProgress(ctx context.Context, pr *RestoreRunProgre
 		pr.CompletedAt = &t
 	}
 
+	var (
+		deltaUploaded = job.Uploaded - pr.Uploaded
+		deltaSkipped  = job.Skipped - pr.Skipped
+		deltaFailed   = job.Failed - pr.Failed
+	)
+
 	pr.Error = job.Error
 	pr.Uploaded = job.Uploaded
 	pr.Skipped = job.Skipped
 	pr.Failed = job.Failed
-	// TODO: fix restore metrics.
-	w.Metrics.SetFilesProgress(w.ClusterID, pr.KeyspaceName, pr.TableName, pr.Host,
-		pr.Size, pr.Uploaded, pr.Skipped, pr.Failed)
+
+	w.Metrics.UpdateRestoreProgress(w.ClusterID, pr.KeyspaceName, pr.TableName, pr.ManifestIP,
+		0, deltaUploaded, deltaSkipped, deltaFailed)
 
 	w.InsertRunProgress(ctx, pr)
 }

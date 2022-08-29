@@ -50,6 +50,9 @@ func (w *restoreWorker) RecordSize(ctx context.Context, run *RestoreRun, target 
 					"size", pr.Size,
 				)
 
+				w.Metrics.UpdateRestoreProgress(run.ClusterID, pr.KeyspaceName, pr.TableName, pr.ManifestIP,
+					pr.Size, 0, 0, 0)
+
 				w.InsertRunProgress(ctx, pr)
 			})
 		})
