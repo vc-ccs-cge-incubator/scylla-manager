@@ -35,6 +35,9 @@ type RestoreProgress struct {
 	// skipped
 	Skipped int64 `json:"skipped,omitempty"`
 
+	// snapshot tag
+	SnapshotTag string `json:"snapshot_tag,omitempty"`
+
 	// stage
 	Stage string `json:"stage,omitempty"`
 
