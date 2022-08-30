@@ -8,6 +8,7 @@ import (
 	"github.com/scylladb/scylla-manager/v3/pkg/command/flag"
 	"github.com/scylladb/scylla-manager/v3/pkg/managerclient"
 	"github.com/scylladb/scylla-manager/v3/pkg/util/uuid"
+	"github.com/scylladb/scylla-manager/v3/swagger/gen/scylla-manager/models"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 )
@@ -122,23 +123,41 @@ func (cmd *command) renderBackupProgress(t *managerclient.Task) error {
 	return p.Render(cmd.OutOrStdout())
 }
 
+// renderRestoreProgress is rendered in the same way as backup progress.
 func (cmd *command) renderRestoreProgress(t *managerclient.Task) error {
-	p, err := cmd.client.RestoreProgress(cmd.Context(), cmd.cluster, t.ID, cmd.runID)
+	rp, err := cmd.client.RestoreProgress(cmd.Context(), cmd.cluster, t.ID, cmd.runID)
 	if err != nil {
 		return err
 	}
 
-	p.Detailed = cmd.details
-	if err := p.SetHostFilter(cmd.host); err != nil {
-		return err
+	bp := managerclient.BackupProgress{
+		TaskRunBackupProgress: &models.TaskRunBackupProgress{
+			Progress: &models.BackupProgress{
+				CompletedAt: rp.Progress.CompletedAt,
+				Failed:      rp.Progress.Failed,
+				Hosts:       rp.Progress.Hosts,
+				Size:        rp.Progress.Size,
+				Skipped:     rp.Progress.Skipped,
+				SnapshotTag: rp.Progress.SnapshotTag,
+				Stage:       rp.Progress.Stage,
+				StartedAt:   rp.Progress.StartedAt,
+				Uploaded:    rp.Progress.Uploaded,
+			},
+			Run: rp.Run,
+		},
 	}
-	if err := p.SetKeyspaceFilter(cmd.keyspace); err != nil {
-		return err
-	}
-	p.Task = t
-	p.AggregateErrors()
 
-	return p.Render(cmd.OutOrStdout())
+	bp.Detailed = cmd.details
+	if err := bp.SetHostFilter(cmd.host); err != nil {
+		return err
+	}
+	if err := bp.SetKeyspaceFilter(cmd.keyspace); err != nil {
+		return err
+	}
+	bp.Task = t
+	bp.AggregateErrors()
+
+	return bp.Render(cmd.OutOrStdout())
 }
 
 func (cmd *command) renderValidateBackupProgress(t *managerclient.Task) error {
