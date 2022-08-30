@@ -702,6 +702,9 @@
     "RestoreProgress": {
       "type": "object",
       "properties": {
+        "snapshot_tag": {
+          "type": "string"
+        },
         "hosts": {
           "type": "array",
           "items": {
