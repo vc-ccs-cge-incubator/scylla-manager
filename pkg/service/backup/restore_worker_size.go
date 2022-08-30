@@ -4,33 +4,30 @@ import (
 	"context"
 
 	. "github.com/scylladb/scylla-manager/v3/pkg/service/backup/backupspec"
-	"github.com/scylladb/scylla-manager/v3/pkg/util/uuid"
 )
 
-// RecordSize records size of every table from every manifest.
-// Resuming is implemented on manifest (nodeID) level.
-func (w *restoreWorker) RecordSize(ctx context.Context, run *RestoreRun, target RestoreTarget) error {
-	var resumed bool
-	if !target.Continue || run.PrevID == uuid.Nil {
-		resumed = true
-	}
-
+// restoreSize records size of every table from every manifest.
+// Resuming is implemented on manifest level.
+func (w *restoreWorker) restoreSize(ctx context.Context, run *RestoreRun, target RestoreTarget) error {
 	pr := &RestoreRunProgress{
 		ClusterID: run.ClusterID,
 		TaskID:    run.TaskID,
 		RunID:     run.ID,
 	}
 
-	for _, l := range target.Location {
-		err := w.forEachRestoredManifest(ctx, l, func(miwc ManifestInfoWithContent) error {
-			if !resumed {
+	for _, w.location = range target.Location {
+		err := w.forEachRestoredManifest(ctx, w.location, func(miwc ManifestInfoWithContent) error {
+			w.miwc = miwc
+
+			if !w.resumed {
+				// Check if table has already been processed in previous run
 				if run.ManifestPath != miwc.Path() {
 					return nil
 				}
-				resumed = true
+				w.resumed = true
 			} else {
 				run.ManifestPath = miwc.Path()
-				// Record size calculation progress
+
 				w.InsertRun(ctx, run)
 			}
 
@@ -41,7 +38,6 @@ func (w *restoreWorker) RecordSize(ctx context.Context, run *RestoreRun, target 
 				pr.KeyspaceName = fm.Keyspace
 				pr.TableName = fm.Table
 				pr.Size = fm.Size
-				// Record table's size
 
 				w.Logger.Info(ctx, "Recorded table size",
 					"manifest", pr.ManifestPath,
@@ -53,6 +49,7 @@ func (w *restoreWorker) RecordSize(ctx context.Context, run *RestoreRun, target 
 				w.Metrics.UpdateRestoreProgress(run.ClusterID, pr.KeyspaceName, pr.TableName, pr.ManifestIP,
 					pr.Size, 0, 0, 0)
 
+				// Record table's size
 				w.InsertRunProgress(ctx, pr)
 			})
 		})

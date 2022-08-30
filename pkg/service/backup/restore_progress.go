@@ -1,6 +1,8 @@
 package backup
 
 import (
+	"strings"
+
 	"github.com/scylladb/gocqlx/v2/qb"
 	"github.com/scylladb/scylla-manager/v3/pkg/schema/table"
 )
@@ -23,7 +25,6 @@ func (w *restoreWorker) aggregateProgress(run *RestoreRun) RestoreProgress {
 
 	w.ForEachProgress(run, w.aggregateTableProgress(tableMap))
 
-	// Swap host representation from nodeID to IP.
 	ksMap := w.aggregateKeyspaceProgress(tableMap)
 	hostMap := w.aggregateHostProgress(ksMap)
 
@@ -127,7 +128,7 @@ func (w *restoreWorker) aggregateTableProgress(tableMap map[tableKey]TableProgre
 			}
 		}
 
-		// Check if progress was created with RecordSize
+		// Check if progress was created with restoreSize
 		if pr.AgentJobID == 0 {
 			tab.Size += pr.Size
 		} else {
@@ -141,13 +142,15 @@ func (w *restoreWorker) aggregateTableProgress(tableMap map[tableKey]TableProgre
 
 		if tab.Error == "" {
 			tab.Error = pr.Error
+		} else if pr.Error != "" {
+			tab.Error = strings.Join([]string{tab.Error, pr.Error}, "\n")
 		}
 
 		tableMap[tk] = tab
 	}
 }
 
-// ForEachProgress iterates over all RestoreRunProgress that belong to run arg.
+// ForEachProgress iterates over all RestoreRunProgress that belong to run.
 func (w *restoreWorker) ForEachProgress(run *RestoreRun, cb func(*RestoreRunProgress)) {
 	iter := table.RestoreRunProgress.SelectQuery(w.managerSession).BindMap(qb.M{
 		"cluster_id": run.ClusterID,
@@ -163,7 +166,7 @@ func (w *restoreWorker) ForEachProgress(run *RestoreRun, cb func(*RestoreRunProg
 }
 
 // ForEachTableProgress iterates over all RestoreRunProgress that belong
-// to run, manifest and table specified in run arg.
+// to run, manifest and table specified in run.
 func (w *restoreWorker) ForEachTableProgress(run *RestoreRun, cb func(*RestoreRunProgress)) {
 	iter := qb.Select(table.RestoreRunProgress.Name()).Where(
 		qb.Eq("cluster_id"),

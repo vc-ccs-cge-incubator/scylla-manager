@@ -3,8 +3,6 @@ package backup
 import (
 	"time"
 
-	"github.com/scylladb/gocqlx/v2"
-	"github.com/scylladb/scylla-manager/v3/pkg/schema/table"
 	. "github.com/scylladb/scylla-manager/v3/pkg/service/backup/backupspec"
 	"github.com/scylladb/scylla-manager/v3/pkg/util/uuid"
 )
@@ -21,11 +19,6 @@ type RestoreRun struct {
 	TableName    string // marks currently processed table
 	SnapshotTag  string
 	Stage        RestoreStage
-}
-
-func (p *RestoreRunProgress) ExecDeleteQuery(s gocqlx.Session) error {
-	q := table.RestoreRunProgress.DeleteQuery(s).BindStruct(p)
-	return q.ExecRelease()
 }
 
 // RestoreRunProgress describes restore progress like RunProgress.

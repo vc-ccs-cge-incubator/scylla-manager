@@ -23,7 +23,6 @@ func DefaultConfig() Config {
 		DiskSpaceFreeMinPercent:   10,
 		LongPollingTimeoutSeconds: 10,
 		AgeMax:                    12 * time.Hour,
-		// TODO: do we need to set default local DC?
 	}
 }
 
@@ -39,6 +38,5 @@ func (c *Config) Validate() error {
 	if c.AgeMax < 0 {
 		err = multierr.Append(err, errors.New("invalid age_max, must be >= 0"))
 	}
-	// TODO: do we need to validate local DC?
 	return err
 }

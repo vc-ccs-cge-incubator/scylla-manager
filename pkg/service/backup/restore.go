@@ -3,14 +3,15 @@ package backup
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/pkg/errors"
 	. "github.com/scylladb/scylla-manager/v3/pkg/service/backup/backupspec"
+	"github.com/scylladb/scylla-manager/v3/pkg/util/inexlist/ksfilter"
 	"github.com/scylladb/scylla-manager/v3/pkg/util/uuid"
 )
 
-// TODO docstrings
-
+// RestoreTarget specifies what data should be restored and from which locations.
 type RestoreTarget struct {
 	Location         []Location `json:"location"`
 	SnapshotTag      string     `json:"snapshot_tag"`
@@ -21,11 +22,15 @@ type RestoreTarget struct {
 	Parallel         int        `json:"parallel"`
 }
 
+// RestoreRunner implements scheduler.Runner.
 type RestoreRunner struct {
 	service *Service
 }
 
+// Run implementation for RestoreRunner.
 func (r RestoreRunner) Run(ctx context.Context, clusterID, taskID, runID uuid.UUID, properties json.RawMessage) error {
+	r.service.metrics.ResetClusterMetrics(clusterID)
+
 	t, err := r.service.GetRestoreTarget(ctx, clusterID, properties)
 	if err != nil {
 		return errors.Wrap(err, "get restore target")
@@ -33,10 +38,12 @@ func (r RestoreRunner) Run(ctx context.Context, clusterID, taskID, runID uuid.UU
 	return r.service.Restore(ctx, clusterID, taskID, runID, t)
 }
 
+// RestoreRunner creates a RestoreRunner that handles restores.
 func (s *Service) RestoreRunner() RestoreRunner {
 	return RestoreRunner{service: s}
 }
 
+// GetRestoreTarget converts runner properties into RestoreTarget.
 func (s *Service) GetRestoreTarget(ctx context.Context, clusterID uuid.UUID, properties json.RawMessage) (RestoreTarget, error) {
 	s.logger.Info(ctx, "GetRestoreTarget", "cluster_id", clusterID)
 
@@ -64,12 +71,15 @@ func (s *Service) GetRestoreTarget(ctx context.Context, clusterID uuid.UUID, pro
 	return t, nil
 }
 
+// forEachRestoredManifest returns a wrapper for forEachManifest that iterates over manifest with
+// cluster ID and snapshot tag specified in restore target.
 func (s *Service) forEachRestoredManifest(clusterID uuid.UUID, snapshotTag string) func(context.Context, Location, func(ManifestInfoWithContent) error) error {
 	return func(ctx context.Context, location Location, f func(content ManifestInfoWithContent) error) error {
 		return s.forEachManifest(ctx, clusterID, []Location{location}, ListFilter{SnapshotTag: snapshotTag}, f)
 	}
 }
 
+// Restore executes restore on a given target.
 func (s *Service) Restore(ctx context.Context, clusterID, taskID, runID uuid.UUID, target RestoreTarget) error {
 	s.logger.Info(ctx, "Restore",
 		"cluster_id", clusterID,
@@ -103,6 +113,11 @@ func (s *Service) Restore(ctx context.Context, clusterID, taskID, runID uuid.UUI
 	}
 	defer clusterSession.Close()
 
+	filter, err := ksfilter.NewFilter(target.Keyspace)
+	if err != nil {
+		return errors.Wrap(err, "crete filter")
+	}
+
 	w := &restoreWorker{
 		worker: worker{
 			ClusterID:   clusterID,
@@ -112,59 +127,78 @@ func (s *Service) Restore(ctx context.Context, clusterID, taskID, runID uuid.UUI
 			Client:      client,
 			Config:      s.config,
 			Metrics:     s.metrics,
-			Logger:      s.logger,
+			Logger:      s.logger.Named("restore"),
 		},
 		managerSession:          s.session,
 		clusterSession:          clusterSession,
 		forEachRestoredManifest: s.forEachRestoredManifest(clusterID, target.SnapshotTag),
+		filter:                  filter,
+		localDC:                 s.config.LocalDC,
 	}
 
 	if target.Continue {
 		if err := w.decorateWithPrevRun(ctx, run); err != nil {
 			return err
 		}
+
 		w.InsertRun(ctx, run)
 		// Update run with previous progress.
 		if run.PrevID != uuid.Nil {
-			w.clonePrevProgress(run)
+			w.clonePrevProgress(ctx, run)
 		}
 
-		w.Logger.Info(ctx, "After decoration",
+		w.Logger.Info(ctx, "Run after decoration",
 			"run", *run,
 		)
 	} else {
 		w.InsertRun(ctx, run)
 	}
 
-	if run.Stage.Index() <= StageRestoreSchema.Index() {
-		run.Stage = StageRestoreSchema
-		w.InsertRun(ctx, run)
-
-		if err := w.RestoreSchema(ctx, target); err != nil {
-			return errors.Wrap(err, "restore schema")
-		}
+	if !target.Continue || run.PrevID == uuid.Nil {
+		w.resumed = true
 	}
 
-	if run.Stage.Index() <= StageCalcRestoreSize.Index() {
-		run.Stage = StageCalcRestoreSize
-		w.InsertRun(ctx, run)
+	guardFunc := func(_ context.Context, _ *RestoreRun, _ RestoreTarget) error {
+		return nil
+	}
+	stageFunc := map[RestoreStage]func(context.Context, *RestoreRun, RestoreTarget) error{
+		StageRestoreInit:   guardFunc,
+		StageRestoreSchema: w.restoreSchema,
+		StageRestoreSize:   w.restoreSize,
+		StageRestoreData:   w.restoreData,
+		StageRestoreDone:   guardFunc,
+	}
+	logger := w.Logger
 
-		if err := w.RecordSize(ctx, run, target); err != nil {
-			return errors.Wrap(err, "record restore size")
+	for _, stage := range RestoreStageOrder() {
+		if run.Stage.Index() <= stage.Index() {
+			run.Stage = stage
+			w.InsertRun(ctx, run)
+
+			name := strings.ToLower(string(stage))
+			w.Logger = logger.Named(name)
+
+			if err := stageFunc[stage](ctx, run, target); err != nil {
+				return errors.Wrapf(err, "restore failed at stage: %s", name)
+			}
 		}
 	}
-
-	if run.Stage.Index() <= StageRestoreFiles.Index() {
-		run.Stage = StageRestoreFiles
-		w.InsertRun(ctx, run)
-
-		if err := w.RestoreFiles(ctx, run, target, s.config.LocalDC); err != nil {
-			return errors.Wrap(err, "restore files")
-		}
-	}
-
-	run.Stage = StageRestoreDone
-	w.InsertRun(ctx, run)
 
 	return nil
+}
+
+// GetRestoreProgress aggregates progress for the restore run of the task
+// and breaks it down by keyspace and table.json.
+// If nothing was found scylla-manager.ErrNotFound is returned.
+func (s *Service) GetRestoreProgress(ctx context.Context, clusterID, taskID, runID uuid.UUID) (RestoreProgress, error) {
+	w := &restoreWorker{
+		worker: worker{
+			ClusterID: clusterID,
+			TaskID:    taskID,
+			RunID:     runID,
+		},
+		managerSession: s.session,
+	}
+
+	return w.GetProgress(ctx)
 }

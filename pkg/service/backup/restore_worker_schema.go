@@ -13,69 +13,15 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/scylladb/gocqlx/v2"
 	"github.com/scylladb/gocqlx/v2/qb"
 	. "github.com/scylladb/scylla-manager/v3/pkg/service/backup/backupspec"
 	"github.com/scylladb/scylla-manager/v3/pkg/util/uuid"
 )
 
-type fakeSchemaError struct{}
-
-func (err fakeSchemaError) Error() string {
-	return "fake error to stop manifest iteration"
-}
-
-func (w *restoreWorker) RestoreSchema(ctx context.Context, target RestoreTarget) error {
-	w.Logger.Info(ctx, "Restoring schema")
-
-	var (
-		prevClusterID uuid.UUID // ID of the cluster on which snapshot was taken
-		prevTaskID    uuid.UUID // ID of the backup task that created restored snapshot
-
-		l = target.Location[0] // Any location is good for restoring schema
-	)
-
-	// Snapshot's ClusterID and TaskID can be obtained from any snapshot's manifest
-	err := w.forEachRestoredManifest(ctx, l, func(miwc ManifestInfoWithContent) error {
-		prevClusterID = miwc.ClusterID
-		prevTaskID = miwc.TaskID
-		// One manifest is enough to get ClusterID and TaskID
-		return fakeSchemaError{}
-	})
-
-	if !errors.Is(err, fakeSchemaError{}) {
-		return errors.Wrap(err, "iterate over manifests")
-	}
-
-	status, err := w.Client.Status(ctx)
+func (w *restoreWorker) restoreSchema(ctx context.Context, _ *RestoreRun, target RestoreTarget) error {
+	compressedSchema, err := w.getCompressedSchema(ctx, target)
 	if err != nil {
-		return errors.Wrap(err, "get client status")
-	}
-
-	nodes, err := w.Client.GetLiveNodes(ctx, status.Datacenter([]string{l.DC}))
-	if err != nil {
-		return errors.Wrap(err, "get live nodes")
-	}
-
-	var (
-		schemaPath       = l.RemotePath(RemoteSchemaFile(prevClusterID, prevTaskID, target.SnapshotTag))
-		compressedSchema []byte
-	)
-
-	for _, n := range nodes {
-		compressedSchema, err = w.Client.RcloneCat(ctx, n.Addr, schemaPath)
-		if err == nil {
-			break
-		}
-
-		w.Logger.Error(ctx, "Couldn't get schema from backup location",
-			"host", n.Addr,
-			"error", err,
-		)
-	}
-
-	if compressedSchema == nil {
-		return errors.New("none of the hosts could fetch compressed schema")
+		return errors.Wrap(err, "get compressed schema")
 	}
 
 	srcr := bytes.NewBuffer(compressedSchema)
@@ -88,7 +34,7 @@ func (w *restoreWorker) RestoreSchema(ctx context.Context, target RestoreTarget)
 
 	for {
 		hdr, err := tr.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -104,7 +50,7 @@ func (w *restoreWorker) RestoreSchema(ctx context.Context, target RestoreTarget)
 			// Schema files consist of multiple statements.
 			stmt, err := dstr.ReadString(';')
 			if err != nil {
-				if err == io.EOF && strings.TrimSpace(stmt) == "" {
+				if errors.Is(err, io.EOF) && strings.TrimSpace(stmt) == "" {
 					break
 				}
 
@@ -123,6 +69,71 @@ func (w *restoreWorker) RestoreSchema(ctx context.Context, target RestoreTarget)
 	return nil
 }
 
+type fakeSchemaError struct{}
+
+func (err fakeSchemaError) Error() string {
+	return "fake error to stop manifest iteration"
+}
+
+func (w *restoreWorker) getCompressedSchema(ctx context.Context, target RestoreTarget) ([]byte, error) {
+	var (
+		prevClusterID uuid.UUID // ID of the cluster on which snapshot was taken
+		prevTaskID    uuid.UUID // ID of the backup task that created restored snapshot
+
+		l = target.Location[0] // Any location is good for restoring schema
+	)
+
+	w.Logger.Info(ctx, "Restoring schema from location",
+		"location", l,
+	)
+
+	// Snapshot's ClusterID and TaskID can be obtained from any snapshot's manifest
+	err := w.forEachRestoredManifest(ctx, l, func(miwc ManifestInfoWithContent) error {
+		prevClusterID = miwc.ClusterID
+		prevTaskID = miwc.TaskID
+		// One manifest is enough to get ClusterID and TaskID
+		return fakeSchemaError{}
+	})
+
+	if !errors.Is(err, fakeSchemaError{}) {
+		return nil, errors.Wrap(err, "iterate over manifests")
+	}
+
+	status, err := w.Client.Status(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "get client status")
+	}
+
+	nodes, err := w.Client.GetLiveNodes(ctx, status.Datacenter([]string{l.DC}))
+	if err != nil {
+		return nil, errors.Wrap(err, "get live nodes")
+	}
+
+	var (
+		schemaPath       = l.RemotePath(RemoteSchemaFile(prevClusterID, prevTaskID, target.SnapshotTag))
+		compressedSchema []byte
+	)
+
+	// Get compressed schema from any host in location's dc
+	for _, n := range nodes {
+		compressedSchema, err = w.Client.RcloneCat(ctx, n.Addr, schemaPath)
+		if err == nil {
+			break
+		}
+
+		w.Logger.Error(ctx, "Couldn't get schema from backup location",
+			"host", n.Addr,
+			"error", err,
+		)
+	}
+
+	if compressedSchema == nil {
+		return nil, errors.New("none of the hosts could fetch compressed schema")
+	}
+
+	return compressedSchema, nil
+}
+
 // compaction strategy is represented as map of options.
 // Note that altering table's compaction strategy completely overrides previous one
 // (old options that are not specified in new strategy are discarded).
@@ -139,13 +150,13 @@ func (c compaction) String() string {
 	return fmt.Sprintf("{%s}", cqlOpts)
 }
 
-func (w *restoreWorker) RecordGraceSecondsAndCompaction(ctx context.Context, clusterSession gocqlx.Session, keyspace, table string) (int, compaction, error) {
+func (w *restoreWorker) RecordGraceSecondsAndCompaction(ctx context.Context, keyspace, table string) (int, compaction, error) {
 	w.Logger.Info(ctx, "Retrieving gc_grace_seconds and compaction")
 
 	q := qb.Select("system_schema.tables").
 		Columns("gc_grace_seconds", "compaction").
 		Where(qb.Eq("keyspace_name"), qb.Eq("table_name")).
-		Query(clusterSession).
+		Query(w.clusterSession).
 		Bind(keyspace, table)
 	defer q.Release()
 
@@ -161,9 +172,7 @@ func (w *restoreWorker) RecordGraceSecondsAndCompaction(ctx context.Context, clu
 	return ggs, comp, nil
 }
 
-// TODO: what consistency level should be assigned to ALTER TABLE queries?
-
-func (w *restoreWorker) SetGraceSecondsAndCompaction(ctx context.Context, clusterSession gocqlx.Session, keyspace, table string, ggs int, comp compaction) error {
+func (w *restoreWorker) SetGraceSecondsAndCompaction(ctx context.Context, keyspace, table string, ggs int, comp compaction) error {
 	w.Logger.Info(ctx, "Setting gc_grace_seconds and compaction",
 		"gc_grace_seconds", ggs,
 		"compaction", comp.String(),
@@ -171,7 +180,7 @@ func (w *restoreWorker) SetGraceSecondsAndCompaction(ctx context.Context, cluste
 
 	alterStmt := fmt.Sprintf("ALTER TABLE %s.%s WITH gc_grace_seconds=%s AND compaction=%s", keyspace, table, strconv.Itoa(ggs), comp)
 
-	if err := clusterSession.ExecStmt(alterStmt); err != nil {
+	if err := w.clusterSession.ExecStmt(alterStmt); err != nil {
 		return errors.Wrap(err, "set gc_grace_seconds and compaction")
 	}
 
@@ -180,14 +189,14 @@ func (w *restoreWorker) SetGraceSecondsAndCompaction(ctx context.Context, cluste
 
 // ExecOnDisabledTable executes given function with
 // table's compaction and gc_grace_seconds temporarily disabled.
-func (w *restoreWorker) ExecOnDisabledTable(ctx context.Context, clusterSession gocqlx.Session, keyspace, table string, f func() error) error {
+func (w *restoreWorker) ExecOnDisabledTable(ctx context.Context, keyspace, table string, f func() error) error {
 	w.Logger.Info(ctx, "Temporarily disabling compaction and gc_grace_seconds",
 		"keyspace", keyspace,
 		"table", table,
 	)
 
 	// Temporarily disable gc grace seconds and compaction
-	ggs, comp, err := w.RecordGraceSecondsAndCompaction(ctx, clusterSession, keyspace, table)
+	ggs, comp, err := w.RecordGraceSecondsAndCompaction(ctx, keyspace, table)
 	if err != nil {
 		return err
 	}
@@ -203,22 +212,22 @@ func (w *restoreWorker) ExecOnDisabledTable(ctx context.Context, clusterSession 
 	// Disable compaction option
 	tmpComp["enabled"] = "false"
 
-	if err := w.SetGraceSecondsAndCompaction(ctx, clusterSession, keyspace, table, maxGGS, tmpComp); err != nil {
+	if err := w.SetGraceSecondsAndCompaction(ctx, keyspace, table, maxGGS, tmpComp); err != nil {
 		return err
 	}
 	// Reset gc grace seconds and compaction
-	defer w.SetGraceSecondsAndCompaction(ctx, clusterSession, keyspace, table, ggs, comp)
+	defer w.SetGraceSecondsAndCompaction(ctx, keyspace, table, ggs, comp) //nolint: errcheck
 
 	return f()
 }
 
-func (w *restoreWorker) RecordTableVersion(ctx context.Context, clusterSession gocqlx.Session, keyspace, table string) (string, error) {
+func (w *restoreWorker) RecordTableVersion(ctx context.Context, keyspace, table string) (string, error) {
 	w.Logger.Info(ctx, "Retrieving table's version")
 
 	q := qb.Select("system_schema.tables").
 		Columns("id").
 		Where(qb.Eq("keyspace_name"), qb.Eq("table_name")).
-		Query(clusterSession).
+		Query(w.clusterSession).
 		Bind(keyspace, table)
 
 	defer q.Release()

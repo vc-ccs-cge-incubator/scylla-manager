@@ -21,17 +21,28 @@ import (
 
 type restoreHandler struct {
 	config agent.Config
-	logger log.Logger
+	logger *log.Logger
 }
 
 func newRestoreHandler(c agent.Config) *restoreHandler {
-	l, _ := c.MakeLogger()
-	return &restoreHandler{config: c, logger: l}
+	return &restoreHandler{config: c}
 }
 
-// restore SSTables that are already downloaded to scylla's upload directory.
+// restore SSTables that are already downloaded to table upload directory.
 func (h *restoreHandler) restore(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	// Initialise logger
+	if h.logger == nil {
+		l, err := h.config.MakeLogger()
+		if err != nil {
+			h.respondWithInternalError(ctx, w, r, errors.Wrap(err, "create logger"))
+
+			return
+		}
+
+		h.logger = &l
+	}
+
 	h.logger.Info(ctx, "Restoring files")
 
 	params := new(models.RestoreParams)

@@ -800,7 +800,7 @@
         ],
         "responses": {
           "200": {
-            "description": "successful restore (TODO - body?)",
+            "description": "Empty object",
             "headers": {}
           },
           "default": {

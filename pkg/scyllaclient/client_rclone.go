@@ -266,6 +266,21 @@ func (c *Client) RcloneCopyPaths(ctx context.Context, host, dstRemoteDir, srcRem
 	return resp.Payload.Jobid, nil
 }
 
+// Restore SSTables that are already downloaded to host's table upload directory.
+func (c *Client) Restore(ctx context.Context, host, keyspace, table, version string, files []string) error {
+	p := operations.RestoreParams{
+		Context: forceHost(ctx, host),
+		Restore: &models.RestoreParams{
+			Keyspace: keyspace,
+			Table:    table,
+			Version:  version,
+			Files:    files,
+		},
+	}
+	_, err := c.agentOps.Restore(&p) // nolint: errcheck
+	return err
+}
+
 // RcloneDeleteDir removes a directory or container and all of its contents
 // from the remote.
 // Remote path format is "name:bucket/path".
@@ -283,21 +298,6 @@ func (c *Client) RcloneDeleteDir(ctx context.Context, host, remotePath string) e
 		Async: false,
 	}
 	_, err = c.agentOps.OperationsPurge(&p) // nolint: errcheck
-	return err
-}
-
-// TODO - consolidate parameters?
-func (c *Client) Restore(ctx context.Context, host, keyspace, table, version string, files []string) error {
-	p := operations.RestoreParams{
-		Context: forceHost(ctx, host),
-		Restore: &models.RestoreParams{
-			Keyspace: keyspace,
-			Table:    table,
-			Version:  version,
-			Files:    files,
-		},
-	}
-	_, err := c.agentOps.Restore(&p)
 	return err
 }
 

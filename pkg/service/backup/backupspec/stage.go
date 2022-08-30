@@ -65,19 +65,24 @@ type RestoreStage string
 
 // RestoreStage enumeration.
 const (
-	StageRestoreInit     RestoreStage = "RESTORE_INIT"
-	StageRestoreSchema   RestoreStage = "RESTORE_SCHEMA"
-	StageCalcRestoreSize RestoreStage = "RESTORE_SIZE"
-	StageRestoreFiles    RestoreStage = "RESTORE_FILES"
-	StageRestoreDone     RestoreStage = "RESTORE_DONE"
+	StageRestoreInit   RestoreStage = "INIT"
+	StageRestoreSchema RestoreStage = "SCHEMA"
+	StageRestoreSize   RestoreStage = "SIZE"
+	StageRestoreData   RestoreStage = "DATA"
+	StageRestoreDone   RestoreStage = "DONE"
 )
 
 var restoreStageOrder = []RestoreStage{
 	StageRestoreInit,
 	StageRestoreSchema,
-	StageCalcRestoreSize,
-	StageRestoreFiles,
+	StageRestoreSize,
+	StageRestoreData,
 	StageRestoreDone,
+}
+
+// RestoreStageOrder listing of all restore stages in the order of execution.
+func RestoreStageOrder() []RestoreStage {
+	return restoreStageOrder
 }
 
 // Index returns restore stage position among all stages, stage with index n+1 happens

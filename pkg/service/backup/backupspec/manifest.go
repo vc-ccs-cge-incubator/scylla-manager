@@ -238,6 +238,22 @@ func (m *ManifestContentWithIndex) ForEachIndexIter(cb func(fm FilesMeta)) error
 	return iter.Error
 }
 
+// ForEachIndexIterWithError is a wrapper for ForEachIndexIter that stops
+// iteration after callback returns an error.
+func (m *ManifestContentWithIndex) ForEachIndexIterWithError(cb func(FilesMeta) error) error {
+	var indexErr error
+	err := m.ForEachIndexIter(func(fm FilesMeta) {
+		if indexErr == nil {
+			indexErr = cb(fm)
+		}
+	})
+
+	if indexErr != nil {
+		return indexErr
+	}
+	return err
+}
+
 // ForEachIndexIterFiles performs an action for each file in the index.
 func (m *ManifestContentWithIndex) ForEachIndexIterFiles(mi *ManifestInfo, cb func(dir string, files []string)) error {
 	return m.ForEachIndexIter(func(fm FilesMeta) {

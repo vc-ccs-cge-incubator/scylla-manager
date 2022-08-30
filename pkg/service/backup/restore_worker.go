@@ -9,15 +9,46 @@ import (
 	"github.com/scylladb/scylla-manager/v3/pkg/schema/table"
 	"github.com/scylladb/scylla-manager/v3/pkg/service"
 	. "github.com/scylladb/scylla-manager/v3/pkg/service/backup/backupspec"
+	"github.com/scylladb/scylla-manager/v3/pkg/util/inexlist/ksfilter"
 	"github.com/scylladb/scylla-manager/v3/pkg/util/uuid"
 )
 
+// tableRunProgress maps rclone job ID to corresponding run progress
+// for a specific table.
+type tableRunProgress map[int64]*RestoreRunProgress
+
+// jobUnit represents host that can be used for restoring files.
+// If set, JobID is the ID of the unfinished rclone job started on the host.
+type jobUnit struct {
+	Host   string
+	Shards uint
+	JobID  int64
+}
+
+// bundle represents list of SSTables with the same ID.
+type bundle []string
+
+// restoreWorker uses and extends implementation of backup worker.
 type restoreWorker struct {
 	worker
 
-	managerSession          gocqlx.Session
-	clusterSession          gocqlx.Session
+	// Fields below are constant among all restore runs of the same restore task.
+	managerSession gocqlx.Session
+	clusterSession gocqlx.Session
+	// Iterates over all manifests in given location with
+	// cluster ID and snapshot tag specified in restore target.
 	forEachRestoredManifest func(ctx context.Context, location Location, f func(ManifestInfoWithContent) error) error
+	filter                  *ksfilter.Filter // Filters keyspaces specified in restore target
+	localDC                 string           // Datacenter local to scylla manager
+
+	// Fields below are mutable for each restore run
+	location          Location                // Currently restored location
+	miwc              ManifestInfoWithContent // Currently restored manifest
+	jobs              []jobUnit               // Job units created for currently restored location
+	bundles           map[string]bundle       // Maps bundle to it's ID
+	bundleIDPool      chan string             // IDs of the bundles that are yet to be restored
+	prevTableProgress tableRunProgress        // Progress of the currently restored table from previous run
+	resumed           bool                    // Set to true if current run has already skipped all already restored tables
 }
 
 func (w *restoreWorker) InsertRun(ctx context.Context, run *RestoreRun) {
@@ -32,16 +63,16 @@ func (w *restoreWorker) InsertRun(ctx context.Context, run *RestoreRun) {
 func (w *restoreWorker) InsertRunProgress(ctx context.Context, pr *RestoreRunProgress) {
 	if err := table.RestoreRunProgress.InsertQuery(w.managerSession).BindStruct(pr).ExecRelease(); err != nil {
 		w.Logger.Error(ctx, "Insert run progress",
-			"progress", pr,
+			"progress", *pr,
 			"error", err,
 		)
 	}
 }
 
-func (w *restoreWorker) DeleteRunProgress(ctx context.Context, pr *RestoreRunProgress) {
+func (w *restoreWorker) deleteRunProgress(ctx context.Context, pr *RestoreRunProgress) {
 	if err := table.RestoreRunProgress.DeleteQuery(w.managerSession).BindStruct(pr).ExecRelease(); err != nil {
 		w.Logger.Error(ctx, "Delete run progress",
-			"progress", pr,
+			"progress", *pr,
 			"error", err,
 		)
 	}
@@ -49,7 +80,6 @@ func (w *restoreWorker) DeleteRunProgress(ctx context.Context, pr *RestoreRunPro
 
 // decorateWithPrevRun gets restore task previous run and if it can be continued
 // sets PrevID on the given run.
-// TODO: do we have to validate the time of previous run?
 func (w *restoreWorker) decorateWithPrevRun(ctx context.Context, run *RestoreRun) error {
 	prev, err := w.GetLastResumableRun(ctx, run.ClusterID, run.TaskID)
 	if errors.Is(err, service.ErrNotFound) {
@@ -70,7 +100,7 @@ func (w *restoreWorker) decorateWithPrevRun(ctx context.Context, run *RestoreRun
 	return nil
 }
 
-func (w *restoreWorker) clonePrevProgress(run *RestoreRun) {
+func (w *restoreWorker) clonePrevProgress(ctx context.Context, run *RestoreRun) {
 	q := table.RestoreRunProgress.InsertQuery(w.managerSession)
 	defer q.Release()
 
@@ -82,7 +112,12 @@ func (w *restoreWorker) clonePrevProgress(run *RestoreRun) {
 
 	w.ForEachProgress(prevRun, func(pr *RestoreRunProgress) {
 		pr.RunID = run.ID
-		_ = q.BindStruct(pr).Exec()
+		if err := q.BindStruct(pr).Exec(); err != nil {
+			w.Logger.Error(ctx, "Couldn't clone run progress",
+				"run_progress", *pr,
+				"error", err,
+			)
+		}
 	})
 }
 

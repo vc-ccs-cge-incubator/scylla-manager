@@ -702,9 +702,6 @@ type RestoreProgress struct {
 	Task     *Task
 	Detailed bool
 	Errors   []string
-
-	hostFilter     inexlist.InExList
-	keyspaceFilter inexlist.InExList
 }
 
 // SetHostFilter adds filtering rules used for rendering for host details.

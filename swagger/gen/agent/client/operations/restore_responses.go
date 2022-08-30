@@ -50,7 +50,7 @@ func NewRestoreOK() *RestoreOK {
 
 /*RestoreOK handles this case with default header values.
 
-successful restore (TODO - body?)
+Empty object
 */
 type RestoreOK struct {
 	JobID int64

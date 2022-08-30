@@ -942,15 +942,6 @@ func (s *Service) insertWithLogError(ctx context.Context, i Insertable) {
 	}
 }
 
-func (s *Service) deleteWithLogError(ctx context.Context, d Deletable) {
-	if err := d.ExecDeleteQuery(s.session); err != nil {
-		s.logger.Error(ctx, fmt.Sprintf("Failed to update %T", d),
-			"insertable", d,
-			"error", err,
-		)
-	}
-}
-
 // updateStage updates and persists run stage.
 func (s *Service) updateStage(ctx context.Context, run *Run, stage Stage) {
 	run.Stage = stage
