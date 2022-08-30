@@ -1061,6 +1061,9 @@ End time:	{{ FormatTime .EndTime }}
 Duration:	{{ FormatDuration .StartTime .EndTime }}
 {{ end -}}
 {{ with .Progress }}Progress:	{{ if ne .Size 0 }}{{ FormatUploadProgress .Size .Uploaded .Skipped .Failed }}{{else}}-{{ end }}
+{{- if ne .SnapshotTag "" }}
+Snapshot Tag:	{{ .SnapshotTag }}
+{{- end }}
 {{ else }}Progress:	0%
 {{ end }}
 {{- if .Errors -}}

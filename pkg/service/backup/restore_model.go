@@ -65,7 +65,7 @@ type RestoreRunProgress struct {
 // about scylla nodes running on the same IP are squashed into one.
 type RestoreProgress struct {
 	progress
-
-	Hosts []HostProgress `json:"hosts,omitempty"`
-	Stage RestoreStage   `json:"stage"`
+	SnapshotTag string         `json:"snapshot_tag"`
+	Hosts       []HostProgress `json:"hosts,omitempty"`
+	Stage       RestoreStage   `json:"stage"`
 }

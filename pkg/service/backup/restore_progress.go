@@ -15,7 +15,8 @@ func (w *restoreWorker) aggregateProgress(run *RestoreRun) RestoreProgress {
 				StartedAt:   &maxTime,
 				CompletedAt: &zeroTime,
 			},
-			Stage: run.Stage,
+			SnapshotTag: run.SnapshotTag,
+			Stage:       run.Stage,
 		}
 		tableMap = make(map[tableKey]TableProgress)
 	)
