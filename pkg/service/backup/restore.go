@@ -269,5 +269,13 @@ func (s *Service) GetRestoreProgress(ctx context.Context, clusterID, taskID, run
 		managerSession: s.session,
 	}
 
-	return w.GetProgress(ctx)
+	return w.getProgress(ctx)
+}
+
+func (s *Service) GetRestoreTargetSize(ctx context.Context, clusterID uuid.UUID, target RestoreTarget) (int64, error) {
+	w := &restoreWorker{
+		forEachRestoredManifest: s.forEachRestoredManifest(clusterID, target.SnapshotTag),
+	}
+
+	return w.getTargetSize(ctx, target)
 }

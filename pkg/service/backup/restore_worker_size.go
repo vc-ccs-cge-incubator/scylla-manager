@@ -60,3 +60,20 @@ func (w *restoreWorker) restoreSize(ctx context.Context, run *RestoreRun, target
 
 	return nil
 }
+
+func (w *restoreWorker) getTargetSize(ctx context.Context, target RestoreTarget) (int64, error) {
+	var size int64
+
+	for _, w.location = range target.Location {
+		err := w.forEachRestoredManifest(ctx, w.location, func(miwc ManifestInfoWithContent) error {
+			return miwc.ForEachIndexIter(func(fm FilesMeta) {
+				size += fm.Size
+			})
+		})
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return size, nil
+}

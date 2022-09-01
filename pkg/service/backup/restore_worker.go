@@ -168,11 +168,8 @@ func (w *restoreWorker) GetRun(ctx context.Context, clusterID, taskID, runID uui
 	return &r, q.GetRelease(&r)
 }
 
-// GetProgress aggregates progress for the restore run of the task
-// and breaks it down by keyspace and table.json.
-// If nothing was found scylla-manager.ErrNotFound is returned.
-func (w *restoreWorker) GetProgress(ctx context.Context) (RestoreProgress, error) {
-	w.Logger.Debug(ctx, "GetProgress",
+func (w *restoreWorker) getProgress(ctx context.Context) (RestoreProgress, error) {
+	w.Logger.Debug(ctx, "Getting progress",
 		"cluster_id", w.ClusterID,
 		"task_id", w.TaskID,
 		"run_id", w.RunID,
