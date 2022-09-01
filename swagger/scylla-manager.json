@@ -601,6 +601,41 @@
         }
       }
     },
+    "RestoreTarget": {
+      "type": "object",
+      "properties": {
+        "cluster_id": {
+          "type": "string"
+        },
+        "location": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "snapshot_tag": {
+          "type": "string"
+        },
+        "units": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BackupUnit"
+          }
+        },
+        "batch_size": {
+          "type": "integer"
+        },
+        "min_free_disk_space": {
+          "type": "integer"
+        },
+        "parallel": {
+          "type": "integer"
+        },
+        "size": {
+          "type": "integer"
+        }
+      }
+    },
     "BackupUnit": {
       "type": "object",
       "properties": {
@@ -918,29 +953,6 @@
         "trace_id": {
           "description": "Request ID for tracing in logs",
           "type": "string"
-        }
-      }
-    },
-    "RestoreTarget": {
-      "type": "object",
-      "properties": {
-        "cluster_id": {
-          "type": "string"
-        },
-        "host": {
-          "type": "string"
-        },
-        "dc": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "location": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
         }
       }
     }
