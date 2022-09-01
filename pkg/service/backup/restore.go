@@ -20,6 +20,8 @@ type RestoreTarget struct {
 	MinFreeDiskSpace int        `json:"min_free_disk_space"`
 	Continue         bool       `json:"continue"`
 	Parallel         int        `json:"parallel"`
+
+	Units []Unit `json:"units,omitempty"`
 }
 
 // RestoreRunner implements scheduler.Runner.
@@ -66,6 +68,73 @@ func (s *Service) GetRestoreTarget(ctx context.Context, clusterID uuid.UUID, pro
 	}
 	if t.Parallel == 0 {
 		t.Parallel = 1
+	}
+
+	client, err := s.scyllaClient(ctx, clusterID)
+	if err != nil {
+		return t, errors.Wrapf(err, "get client")
+	}
+
+	keyspaces, err := client.Keyspaces(ctx)
+	if err != nil {
+		return t, errors.Wrapf(err, "get keyspaces")
+	}
+
+	filter, err := ksfilter.NewFilter(t.Keyspace)
+	if err != nil {
+		return t, errors.Wrap(err, "create filter")
+	}
+
+	// Always restore missing schema
+	systemSchemaUnit := Unit{
+		Keyspace:  systemSchema,
+		AllTables: true,
+	}
+
+	for _, keyspace := range keyspaces {
+		tables, err := client.Tables(ctx, keyspace)
+		if err != nil {
+			return t, errors.Wrapf(err, "keyspace %s: get tables", keyspace)
+		}
+		// Do not filter out schema
+		if keyspace == systemSchema {
+			systemSchemaUnit.Tables = tables
+		} else {
+			filter.Add(keyspace, tables)
+		}
+	}
+
+	v, err := filter.Apply(false)
+	if err != nil {
+		return t, errors.Wrap(err, "create units")
+	}
+
+	for _, u := range v {
+		t.Units = append(t.Units, Unit{
+			Keyspace:  u.Keyspace,
+			Tables:    u.Tables,
+			AllTables: u.AllTables,
+		})
+	}
+	t.Units = append(t.Units, systemSchemaUnit)
+
+	status, err := client.Status(ctx)
+	if err != nil {
+		return t, errors.Wrap(err, "get status")
+	}
+	// Check if for each location there is at least one host
+	// living in either location's or local dc with access to it.
+	for _, l := range t.Location {
+		var (
+			locationAndLocalStatus = status.Datacenter([]string{l.DC, s.config.LocalDC})
+			remotePath             = l.RemotePath("")
+		)
+		if _, err := client.GetLiveNodesWithLocationAccess(ctx, locationAndLocalStatus, remotePath); err != nil {
+			if strings.Contains(err.Error(), "NoSuchBucket") {
+				return t, errors.New("specified bucket does not exist")
+			}
+			return t, errors.Wrap(err, "location is not accessible")
+		}
 	}
 
 	return t, nil
@@ -115,7 +184,7 @@ func (s *Service) Restore(ctx context.Context, clusterID, taskID, runID uuid.UUI
 
 	filter, err := ksfilter.NewFilter(target.Keyspace)
 	if err != nil {
-		return errors.Wrap(err, "crete filter")
+		return errors.Wrap(err, "create filter")
 	}
 
 	w := &restoreWorker{

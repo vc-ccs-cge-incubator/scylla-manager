@@ -324,9 +324,8 @@ func (w *restoreWorker) updateProgress(ctx context.Context, pr *RestoreRunProgre
 	w.InsertRunProgress(ctx, pr)
 }
 
-// initJobUnits creates jobs with hosts living in either
-// currently restored location's dc or local dc or any dc
-// (with priority given in this order).
+// initJobUnits creates jobs with hosts with access to currently restored location
+// and living in either location's dc or local dc.
 // All running jobs are located at the beginning of the result slice.
 func (w *restoreWorker) initJobUnits(ctx context.Context, run *RestoreRun) error {
 	status, err := w.Client.Status(ctx)
@@ -334,28 +333,23 @@ func (w *restoreWorker) initJobUnits(ctx context.Context, run *RestoreRun) error
 		return errors.Wrap(err, "get client status")
 	}
 
-	var liveNodes scyllaclient.NodeStatusInfoSlice
-	if liveNodes, err = w.Client.GetLiveNodes(ctx, status.Datacenter([]string{w.location.DC})); err != nil {
+	var (
+		liveNodes      scyllaclient.NodeStatusInfoSlice
+		remotePath     = w.location.RemotePath("")
+		locationStatus = status.Datacenter([]string{w.location.DC})
+	)
+
+	if liveNodes, err = w.Client.GetLiveNodesWithLocationAccess(ctx, locationStatus, remotePath); err != nil {
 		w.Logger.Error(ctx, "Couldn't find any live nodes in location's dc",
 			"location", w.location,
 			"error", err,
 		)
 
-		if liveNodes, err = w.Client.GetLiveNodes(ctx, status.Datacenter([]string{w.localDC})); err != nil {
-			w.Logger.Error(ctx, "Couldn't find any live nodes in local dc",
-				"local_dc", w.localDC,
-				"error", err,
-			)
-
-			if liveNodes, err = w.Client.GetLiveNodes(ctx, status); err != nil {
-				return errors.Wrap(err, "no live nodes in cluster")
-			}
+		localStatus := status.Datacenter([]string{w.localDC})
+		if liveNodes, err = w.Client.GetLiveNodesWithLocationAccess(ctx, localStatus, remotePath); err != nil {
+			return errors.Wrap(err, "no live nodes in location's and local dc")
 		}
 	}
-
-	w.Logger.Info(ctx, "Live nodes",
-		"nodes", liveNodes.Hosts(),
-	)
 
 	w.jobs = make([]jobUnit, 0)
 	hostsInPool := strset.New()
@@ -411,10 +405,6 @@ func (w *restoreWorker) initJobUnits(ctx context.Context, run *RestoreRun) error
 			hostsInPool.Add(n.Addr)
 		}
 	}
-
-	w.Logger.Info(ctx, "Created job units",
-		"jobs", w.jobs,
-	)
 
 	return nil
 }
