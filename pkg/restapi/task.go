@@ -151,6 +151,11 @@ type backupTarget struct {
 	Size int64 // Target size in bytes.
 }
 
+type restoreTarget struct {
+	backup.RestoreTarget
+	Size int64 // Target size in bytes.
+}
+
 func (h *taskHandler) getTarget(w http.ResponseWriter, r *http.Request) {
 	newTask, err := h.parseTask(r)
 	if err != nil {
@@ -188,6 +193,21 @@ func (h *taskHandler) getTarget(w http.ResponseWriter, r *http.Request) {
 		t = backupTarget{
 			Target: bt,
 			Size:   size,
+		}
+	case scheduler.RestoreTask:
+		rt, err := h.Backup.GetRestoreTarget(r.Context(), newTask.ClusterID, p)
+		if err != nil {
+			respondError(w, r, errors.Wrap(err, "get restore target"))
+			return
+		}
+		size, err := h.Backup.GetRestoreTargetSize(r.Context(), newTask.ClusterID, rt)
+		if err != nil {
+			respondError(w, r, errors.Wrap(err, "get restore target size"))
+			return
+		}
+		t = restoreTarget{
+			RestoreTarget: rt,
+			Size:          size,
 		}
 	case scheduler.RepairTask:
 		if t, err = h.Repair.GetTarget(r.Context(), newTask.ClusterID, p); err != nil {
