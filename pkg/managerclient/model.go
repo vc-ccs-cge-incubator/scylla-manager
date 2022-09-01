@@ -404,11 +404,48 @@ type RestoreTarget struct {
 	ShowTables int
 }
 
-const restoreTargetTemplate = `TODO - implement`
+const restoreTargetTemplate = `{{ if .Schedule.Cron -}}
+Cron:	{{ .Schedule.Cron }} {{ CronDesc .Schedule.Cron }}
+{{ if .Schedule.Timezone -}}
+Tz:	{{ .Schedule.Timezone }}
+{{ end }}
+{{ end -}}
+Keyspaces:
+{{- range .Units }}
+  - {{ .Keyspace }} {{ FormatTables .Tables .AllTables }}
+{{- end }}
+
+Disk size: ~{{ FormatSizeSuffix .Size }}
+
+Locations:
+{{- range .Location }}
+  - {{ . }}
+{{- end }}
+
+Snapshot Tag:	{{ .SnapshotTag }}
+
+Batch Size: {{ .BatchSize }}
+
+Required free disk space on host: {{ .MinFreeDiskSpace }}%
+
+Parallel: {{ .Parallel }}
+`
 
 // Render implements Renderer interface.
 func (t RestoreTarget) Render(w io.Writer) error {
-	temp := template.Must(template.New("target").Funcs(template.FuncMap{}).Parse(restoreTargetTemplate))
+	temp := template.Must(template.New("target").Funcs(template.FuncMap{
+		"FormatSizeSuffix": FormatSizeSuffix,
+		"FormatTables": func(tables []string, all bool) string {
+			return FormatTables(t.ShowTables, tables, all)
+		},
+		"CronDesc": func(s string) string {
+			d := DescribeCron(s)
+			if d != "" {
+				d = "(" + d + ")"
+			}
+			return d
+		},
+	}).Parse(restoreTargetTemplate))
 	return temp.Execute(w, t)
 }
 
