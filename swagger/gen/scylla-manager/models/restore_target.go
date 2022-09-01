@@ -6,6 +6,9 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"strconv"
+
+	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
 )
@@ -15,21 +18,67 @@ import (
 // swagger:model RestoreTarget
 type RestoreTarget struct {
 
+	// batch size
+	BatchSize int64 `json:"batch_size,omitempty"`
+
 	// cluster id
 	ClusterID string `json:"cluster_id,omitempty"`
 
-	// dc
-	Dc []string `json:"dc"`
-
-	// host
-	Host string `json:"host,omitempty"`
-
 	// location
 	Location []string `json:"location"`
+
+	// min free disk space
+	MinFreeDiskSpace int64 `json:"min_free_disk_space,omitempty"`
+
+	// parallel
+	Parallel int64 `json:"parallel,omitempty"`
+
+	// size
+	Size int64 `json:"size,omitempty"`
+
+	// snapshot tag
+	SnapshotTag string `json:"snapshot_tag,omitempty"`
+
+	// units
+	Units []*BackupUnit `json:"units"`
 }
 
 // Validate validates this restore target
 func (m *RestoreTarget) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := m.validateUnits(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (m *RestoreTarget) validateUnits(formats strfmt.Registry) error {
+
+	if swag.IsZero(m.Units) { // not required
+		return nil
+	}
+
+	for i := 0; i < len(m.Units); i++ {
+		if swag.IsZero(m.Units[i]) { // not required
+			continue
+		}
+
+		if m.Units[i] != nil {
+			if err := m.Units[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("units" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
 	return nil
 }
 
