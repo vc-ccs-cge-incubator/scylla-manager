@@ -176,6 +176,64 @@ var (
 		},
 	})
 
+	RestoreRun = table.New(table.Metadata{
+		Name: "restore_run",
+		Columns: []string{
+			"cluster_id",
+			"id",
+			"keyspace_name",
+			"manifest_path",
+			"prev_id",
+			"snapshot_tag",
+			"stage",
+			"table_name",
+			"task_id",
+			"units",
+		},
+		PartKey: []string{
+			"cluster_id",
+			"task_id",
+		},
+		SortKey: []string{
+			"id",
+		},
+	})
+
+	RestoreRunProgress = table.New(table.Metadata{
+		Name: "restore_run_progress",
+		Columns: []string{
+			"agent_job_id",
+			"cluster_id",
+			"completed_at",
+			"error",
+			"failed",
+			"host",
+			"keyspace_name",
+			"manifest_ip",
+			"manifest_path",
+			"run_id",
+			"size",
+			"skipped",
+			"sstable_id",
+			"started_at",
+			"table_name",
+			"task_id",
+			"uploaded",
+		},
+		PartKey: []string{
+			"cluster_id",
+			"task_id",
+			"run_id",
+		},
+		SortKey: []string{
+			"manifest_path",
+			"keyspace_name",
+			"table_name",
+			"host",
+			"agent_job_id",
+		},
+	})
+
 	SchedulerTask = table.New(table.Metadata{
 		Name: "scheduler_task",
 		Columns: []string{
