@@ -39,7 +39,6 @@ type restoreWorker struct {
 	// cluster ID and snapshot tag specified in restore target.
 	forEachRestoredManifest func(ctx context.Context, location Location, f func(ManifestInfoWithContent) error) error
 	filter                  *ksfilter.Filter // Filters keyspaces specified in restore target
-	localDC                 string           // Datacenter local to scylla manager
 
 	// Fields below are mutable for each restore run
 	location          Location                // Currently restored location

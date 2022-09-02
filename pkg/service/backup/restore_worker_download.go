@@ -198,7 +198,7 @@ func (w *restoreWorker) createRunProgress(ctx context.Context, run *RestoreRun, 
 		return pr, nil
 	}
 
-	if err := w.validateHostDiskSpace(ctx, j.Host, target.MinFreeDiskSpace); err != nil {
+	if err := w.checkAvailableDiskSpace(ctx, hostInfo{IP: j.Host}); err != nil {
 		return nil, errors.Wrap(err, "validate free disk space")
 	}
 
@@ -345,7 +345,7 @@ func (w *restoreWorker) initJobUnits(ctx context.Context, run *RestoreRun) error
 			"error", err,
 		)
 
-		localStatus := status.Datacenter([]string{w.localDC})
+		localStatus := status.Datacenter([]string{w.Config.LocalDC})
 		if liveNodes, err = w.Client.GetLiveNodesWithLocationAccess(ctx, localStatus, remotePath); err != nil {
 			return errors.Wrap(err, "no live nodes in location's and local dc")
 		}
@@ -504,19 +504,6 @@ func (w *restoreWorker) drainBundleIDPool() []string {
 	}
 
 	return content
-}
-
-// validateHostDiskSpace checks if host has at least minDiskSpace percent of free disk space.
-func (w *restoreWorker) validateHostDiskSpace(ctx context.Context, host string, minDiskSpace int) error {
-	disk, err := w.diskFreePercent(ctx, hostInfo{IP: host})
-	if err != nil {
-		return err
-	}
-	if disk < minDiskSpace {
-		return errors.Errorf("Host %s has %d%% free disk space and requires %d%%", host, disk, minDiskSpace)
-	}
-
-	return nil
 }
 
 func isSystemKeyspace(keyspace string) bool {

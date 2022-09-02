@@ -11,40 +11,6 @@ import (
 	"github.com/scylladb/scylla-manager/v3/pkg/util/uuid"
 )
 
-// RestoreTarget specifies what data should be restored and from which locations.
-type RestoreTarget struct {
-	Location         []Location `json:"location"`
-	SnapshotTag      string     `json:"snapshot_tag"`
-	Keyspace         []string   `json:"keyspace"`
-	BatchSize        int        `json:"batch_size"`
-	MinFreeDiskSpace int        `json:"min_free_disk_space"`
-	Continue         bool       `json:"continue"`
-	Parallel         int        `json:"parallel"`
-
-	Units []Unit `json:"units,omitempty"`
-}
-
-// RestoreRunner implements scheduler.Runner.
-type RestoreRunner struct {
-	service *Service
-}
-
-// Run implementation for RestoreRunner.
-func (r RestoreRunner) Run(ctx context.Context, clusterID, taskID, runID uuid.UUID, properties json.RawMessage) error {
-	r.service.metrics.ResetClusterMetrics(clusterID)
-
-	t, err := r.service.GetRestoreTarget(ctx, clusterID, properties)
-	if err != nil {
-		return errors.Wrap(err, "get restore target")
-	}
-	return r.service.Restore(ctx, clusterID, taskID, runID, t)
-}
-
-// RestoreRunner creates a RestoreRunner that handles restores.
-func (s *Service) RestoreRunner() RestoreRunner {
-	return RestoreRunner{service: s}
-}
-
 // GetRestoreTarget converts runner properties into RestoreTarget.
 func (s *Service) GetRestoreTarget(ctx context.Context, clusterID uuid.UUID, properties json.RawMessage) (RestoreTarget, error) {
 	s.logger.Info(ctx, "GetRestoreTarget", "cluster_id", clusterID)
@@ -62,9 +28,6 @@ func (s *Service) GetRestoreTarget(ctx context.Context, clusterID uuid.UUID, pro
 	// Set default values
 	if t.BatchSize == 0 {
 		t.BatchSize = 2
-	}
-	if t.MinFreeDiskSpace == 0 {
-		t.MinFreeDiskSpace = 10
 	}
 	if t.Parallel == 0 {
 		t.Parallel = 1
@@ -202,7 +165,6 @@ func (s *Service) Restore(ctx context.Context, clusterID, taskID, runID uuid.UUI
 		clusterSession:          clusterSession,
 		forEachRestoredManifest: s.forEachRestoredManifest(clusterID, target.SnapshotTag),
 		filter:                  filter,
-		localDC:                 s.config.LocalDC,
 	}
 
 	if target.Continue {

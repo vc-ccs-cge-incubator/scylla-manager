@@ -7,6 +7,18 @@ import (
 	"github.com/scylladb/scylla-manager/v3/pkg/util/uuid"
 )
 
+// RestoreTarget specifies what data should be restored and from which locations.
+type RestoreTarget struct {
+	Location    []Location `json:"location"`
+	SnapshotTag string     `json:"snapshot_tag"`
+	Keyspace    []string   `json:"keyspace"`
+	BatchSize   int        `json:"batch_size"`
+	Continue    bool       `json:"continue"`
+	Parallel    int        `json:"parallel"`
+
+	Units []Unit `json:"units,omitempty"`
+}
+
 // RestoreRun tracks restore progress, shares ID with scheduler.Run that initiated it.
 type RestoreRun struct {
 	ClusterID uuid.UUID
