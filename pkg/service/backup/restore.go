@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	. "github.com/scylladb/scylla-manager/v3/pkg/service/backup/backupspec"
 	"github.com/scylladb/scylla-manager/v3/pkg/util/inexlist/ksfilter"
 	"github.com/scylladb/scylla-manager/v3/pkg/util/uuid"
 )
@@ -108,4 +109,12 @@ func (s *Service) GetRestoreTargetSize(ctx context.Context, clusterID uuid.UUID,
 
 func (s *Service) Restore(ctx context.Context, clusterID, taskID, runID uuid.UUID, target RestoreTarget) error {
 	return errors.New("TODO - implement")
+}
+
+// forEachRestoredManifest returns a wrapper for forEachManifest that iterates over
+// manifest with specified cluster ID and snapshot tag.
+func (s *Service) forEachRestoredManifest(clusterID uuid.UUID, snapshotTag string) func(context.Context, Location, func(ManifestInfoWithContent) error) error {
+	return func(ctx context.Context, location Location, f func(content ManifestInfoWithContent) error) error {
+		return s.forEachManifest(ctx, clusterID, []Location{location}, ListFilter{SnapshotTag: snapshotTag}, f)
+	}
 }

@@ -59,3 +59,39 @@ func (s Stage) Index() int {
 	}
 	panic("Unknown stage " + s)
 }
+
+// RestoreStage specifies the restore worker stage.
+type RestoreStage string
+
+// RestoreStage enumeration.
+const (
+	StageRestoreInit   RestoreStage = "INIT"
+	StageRestoreSchema RestoreStage = "SCHEMA"
+	StageRestoreSize   RestoreStage = "SIZE"
+	StageRestoreData   RestoreStage = "DATA"
+	StageRestoreDone   RestoreStage = "DONE"
+)
+
+var restoreStageOrder = []RestoreStage{
+	StageRestoreInit,
+	StageRestoreSchema,
+	StageRestoreSize,
+	StageRestoreData,
+	StageRestoreDone,
+}
+
+// RestoreStageOrder listing of all restore stages in the order of execution.
+func RestoreStageOrder() []RestoreStage {
+	return restoreStageOrder
+}
+
+// Index returns restore stage position among all stages,
+// stage with index n+1 happens after stage n.
+func (s RestoreStage) Index() int {
+	for i := 0; i < len(stageOrder); i++ {
+		if s == restoreStageOrder[i] {
+			return i
+		}
+	}
+	panic("Unknown restore stage " + s)
+}
