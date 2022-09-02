@@ -1,0 +1,18 @@
+use: restore --cluster <id|name> --location [<dc>:]<provider>:<bucket> [--keyspace <glob>] --snapshot-tag <tag> [flags]
+
+short: Schedule a restore (ad-hoc or scheduled)
+
+long: |
+  This command allows you to schedule or run ad-hoc cluster restore.
+
+batch-size: |
+  Number of SSTables per shard to process in one request by one node.
+  Increasing batch size increases job granularity.
+
+parallel: |
+  The maximum number of Scylla restore jobs that can be run at the same time (on different SSTables).
+  Each node can take part in at most one restore at any given moment.
+
+dry-run: |
+  Validates and displays restore information without actually scheduling the restore.
+  This allows you to display what will happen should the restore run with the parameters you set.
