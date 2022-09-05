@@ -619,7 +619,7 @@
         "units": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/BackupUnit"
+            "$ref": "#/definitions/RestoreUnit"
           }
         },
         "batch_size": {
@@ -629,9 +629,6 @@
           "type": "integer"
         },
         "parallel": {
-          "type": "integer"
-        },
-        "size": {
           "type": "integer"
         }
       }
@@ -650,6 +647,31 @@
         },
         "all_tables": {
           "type": "boolean"
+        }
+      }
+    },
+    "RestoreUnit": {
+      "type": "object",
+      "properties": {
+        "keyspace": {
+          "type": "string"
+        },
+        "tables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RestoreTable"
+          }
+        }
+      }
+    },
+    "RestoreTable": {
+      "type": "object",
+      "properties": {
+        "table": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer"
         }
       }
     },
