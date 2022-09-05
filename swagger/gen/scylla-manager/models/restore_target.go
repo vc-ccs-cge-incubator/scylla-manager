@@ -33,14 +33,11 @@ type RestoreTarget struct {
 	// parallel
 	Parallel int64 `json:"parallel,omitempty"`
 
-	// size
-	Size int64 `json:"size,omitempty"`
-
 	// snapshot tag
 	SnapshotTag string `json:"snapshot_tag,omitempty"`
 
 	// units
-	Units []*BackupUnit `json:"units"`
+	Units []*RestoreUnit `json:"units"`
 }
 
 // Validate validates this restore target
