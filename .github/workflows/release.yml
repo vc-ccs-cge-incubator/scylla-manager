@@ -1,32 +1,87 @@
-# name: Release
+name: Release
 
-# on:
-#   push:
-#     tags:
-#       - 'v**'
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+-arm64'
 
-# jobs:
-#   release:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Checkout
-#         uses: actions/checkout@v2
-#         with:
-#           fetch-depth: 0
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
 
-#       - name: Set go version
-#         run: echo "GOVERSION=$(cat .go-version)" >> $GITHUB_ENV
+      - name: Set go version
+        run: echo "GOVERSION=$(cat .go-version)" >> $GITHUB_ENV
 
-#       - name: Set up go
-#         uses: actions/setup-go@v2
-#         with:
-#           go-version: "${{env.GOVERSION}}"
+      - name: Set up go
+        uses: actions/setup-go@v2
+        with:
+          go-version: "${{env.GOVERSION}}"
 
-#       - name: Release
-#         uses: goreleaser/goreleaser-action@v2
-#         with:
-#           version: latest
-#           workdir: dist
-#           args: release --skip-publish
-#         env:
-#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Release
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: latest
+          workdir: dist
+          args: release --skip-publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache Packages
+        uses: actions/cache@v2 
+        id: restore-build
+        env:
+          cache-name: cache-deb
+        with:
+          path: dist/release
+          key: ${{ github.sha }}
+
+  build:
+    needs:
+      - release
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    strategy:
+      matrix:
+        os:
+          - arm64
+        service:
+          - manager
+          - manager-agent
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Download Build Cache
+        uses: actions/cache@v2
+        id: restore-build
+        env:
+          cache-name: cache-deb
+        with:
+          path: dist/release
+          key: ${{ github.sha }}
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: 'arm64,arm'
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to GH Packages registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
+
+      - name: Build ${{ matrix.service }} for ${{ matrix.os }} Image
+        run: |
+          docker buildx build --provenance=false --load --platform linux/${{ matrix.os }} -t ghcr.io/${{ github.repository_owner }}/scylla-${{ matrix.service }}:3.0.2-${{ matrix.os }} -f ./dist/docker/scylla-${{ matrix.service }}.dockerfile .
+      
+      - name: Push to GH Packages
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/scylla-${{ matrix.service }}:3.0.2-${{ matrix.os }}
