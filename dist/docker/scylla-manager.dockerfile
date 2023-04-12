@@ -1,14 +1,14 @@
-FROM ubuntu:20.04
+FROM --platform=linux/arm64 ubuntu:22.04
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates && \
+    apt-get autoremove -y && \
     apt-get clean && \
-    apt-get autoremove && \
     rm -rf /var/lib/apt/lists/*
 
-COPY scylla-manager-*.deb /
+COPY dist/release/scylla-manager-*.linux_arm64.deb /
 RUN dpkg -i scylla-manager-*.deb && rm /scylla-manager-*.deb
-COPY docker/scylla-manager.yaml /etc/scylla-manager/
+COPY dist/docker/scylla-manager.yaml /etc/scylla-manager/
 
 USER scylla-manager
 ENV HOME /var/lib/scylla-manager/
