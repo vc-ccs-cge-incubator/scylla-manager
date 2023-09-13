@@ -230,21 +230,21 @@ nfpms:
           preremove: rpm/scylla-manager-agent.prerm
           postremove: rpm/scylla-manager-agent.postrm
 
-dockers:
-  - ids:
-      - server
-      - client
-    image_templates:
-      - "scylladb/scylla-manager:{{ .Version }}"
-    dockerfile: docker/scylla-manager.dockerfile
-    extra_files:
-      - docker/scylla-manager.yaml
+# dockers:
+#   - ids:
+#       - server
+#       - client
+#     image_templates:
+#       - "scylladb/scylla-manager:{{ .Version }}"
+#     dockerfile: docker/scylla-manager.dockerfile
+#     extra_files:
+#       - docker/scylla-manager.yaml
 
-  - ids:
-      - agent
-    image_templates:
-      - "scylladb/scylla-manager-agent:{{ .Version }}"
-    dockerfile: docker/scylla-manager-agent.dockerfile
+#   - ids:
+#       - agent
+#     image_templates:
+#       - "scylladb/scylla-manager-agent:{{ .Version }}"
+#     dockerfile: docker/scylla-manager-agent.dockerfile
 
 checksum:
   name_template: 'checksums'
